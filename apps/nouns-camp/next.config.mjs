@@ -20,7 +20,15 @@ const assertEnvironment = () => {
 
   // Assert that required (all whitelisted) variables are defined
   for (const key of whitelistedKeys)
-    if (process.env[key] == null) throw new Error(`${key} is not defined`);
+    if (
+      key !== "NEXT_PUBLIC_RPC_URL" &&
+      !(
+        key === "NEXT_PUBLIC_ALCHEMY_API_KEY" &&
+        process.env.NEXT_PUBLIC_RPC_URL?.trim()
+      ) &&
+      process.env[key] == null
+    )
+      throw new Error(`${key} is not defined`);
 
   // Assert that any public keys are defined in the whitelist
   for (const key of Object.keys(process.env)) {

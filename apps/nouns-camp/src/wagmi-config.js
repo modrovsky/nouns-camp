@@ -18,6 +18,19 @@ import { getChain } from "@/utils/chains";
 const chain = getChain(CHAIN_ID);
 
 export const getJsonRpcUrl = (chainId) => {
+  const rpcUrl = process.env.NEXT_PUBLIC_RPC_URL?.trim();
+  if (rpcUrl && chainId === CHAIN_ID) {
+    let url;
+    try {
+      url = new URL(rpcUrl);
+    } catch {
+      throw new Error("NEXT_PUBLIC_RPC_URL must be a valid HTTP(S) RPC URL");
+    }
+    if (url.protocol !== "https:" && url.protocol !== "http:")
+      throw new Error("NEXT_PUBLIC_RPC_URL must use HTTP or HTTPS");
+    return rpcUrl;
+  }
+
   switch (chainId) {
     case mainnet.id:
       return `https://eth-mainnet.g.alchemy.com/v2/${process.env.NEXT_PUBLIC_ALCHEMY_API_KEY}`;
