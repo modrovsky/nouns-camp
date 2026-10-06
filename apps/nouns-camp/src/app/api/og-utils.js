@@ -1,3 +1,5 @@
+import { readFile } from "node:fs/promises";
+import path from "node:path";
 import { isAddress as isEthereumAccountAddress } from "viem";
 import { ethereum as ethereumUtils } from "@shades/common/utils";
 
@@ -6,15 +8,13 @@ const { truncateAddress } = ethereumUtils;
 export const getFonts = async () => {
   const fontName = "Inter";
 
-  const semiBoldResp = await fetch(
-    new URL("../../assets/fonts/Inter-SemiBold.woff", import.meta.url),
+  const semiBoldFontArray = await readFile(
+    path.join(process.cwd(), "src/assets/fonts/Inter-SemiBold.woff"),
   );
-  const semiBoldFontArray = await semiBoldResp.arrayBuffer();
 
-  const boldResp = await fetch(
-    new URL("../../assets/fonts/Inter-Bold.woff", import.meta.url),
+  const boldFontArray = await readFile(
+    path.join(process.cwd(), "src/assets/fonts/Inter-Bold.woff"),
   );
-  const boldFontArray = await boldResp.arrayBuffer();
 
   return [
     {
