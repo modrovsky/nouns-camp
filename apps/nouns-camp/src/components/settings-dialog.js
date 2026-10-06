@@ -28,18 +28,6 @@ const settingInputConfigByKey = {
       huge: "Huge",
     },
   },
-  "farcaster-cast-filter": {
-    label: "Farcaster content",
-    optionLabelsByValue: {
-      nouners: "Filtered",
-      none: "Show everything",
-      disabled: "Hide everything",
-    },
-    hint: ({ value }) => {
-      if (value !== "nouners") return null;
-      return "This setting will filter feeds to only show casts from accounts that have had onchain interactions with Nouns.";
-    },
-  },
   "xmas-effects-opt-out": {
     label: "Christmas effects",
     optionLabelsByValue: {
@@ -74,9 +62,6 @@ const Content = ({ titleProps, dismiss }) => {
 
   const [theme, setTheme] = useSetting("theme");
   const [zoom, setZoom] = useSetting("zoom");
-  const [farcasterFilter, setFarcasterFilter] = useSetting(
-    "farcaster-cast-filter",
-  );
   const [xmasOptOut, setXmasOptOut] = useSetting("xmas-effects-opt-out");
 
   const [searchParams] = useSearchParams();
@@ -104,11 +89,6 @@ const Content = ({ titleProps, dismiss }) => {
           key: "zoom",
           state: zoom,
           setState: setZoom,
-        },
-        {
-          key: "farcaster-cast-filter",
-          state: farcasterFilter,
-          setState: setFarcasterFilter,
         },
         config["xmas-effects"] && {
           key: "xmas-effects-opt-out",

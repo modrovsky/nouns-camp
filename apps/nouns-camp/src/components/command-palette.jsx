@@ -189,7 +189,7 @@ const commands = [
     id: "open-settings",
     category: "camp",
     label: "Settings",
-    keywords: ["camp", "settings", "light", "dark", "farcaster"],
+    keywords: ["camp", "settings", "light", "dark"],
     action: (_, { openSettingsDialog: open }) => open(),
   },
 ];

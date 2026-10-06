@@ -666,7 +666,6 @@ export async function GET(request) {
         emoji: "twemoji",
         fonts,
         headers: {
-          // https://docs.farcaster.xyz/developers/frames/advanced#making-the-initial-frame-image-dynamic
           "cache-control": `public, immutable, no-transform, s-maxage=${cacheTimeSeconds}, max-age=${cacheTimeSeconds}`,
           "cdn-cache-control": `public, immutable, no-transform, s-maxage=${cacheTimeSeconds}, max-age=${cacheTimeSeconds}`,
         },

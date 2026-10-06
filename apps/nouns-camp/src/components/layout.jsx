@@ -25,7 +25,6 @@ import {
   useActions as useSessionActions,
 } from "@/session-provider";
 import { useDialog } from "@/hooks/global-dialogs";
-import { useConnectedFarcasterAccounts } from "@/hooks/farcaster";
 import useAccountDisplayName from "@/hooks/account-display-name";
 import {
   useAuctionData,
@@ -338,8 +337,6 @@ const NavBar = ({ navigationStack, actions: customActions }) => {
   const { open: openAccountAuthenticationDialog } = useDialog(
     "account-authentication",
   );
-  const { open: openFarcasterSetupDialog } = useDialog("farcaster-setup");
-
   const isDesktop = useMatchMedia("(min-width: 600px)");
 
   const actions = unresolvedActions
@@ -355,19 +352,12 @@ const NavBar = ({ navigationStack, actions: customActions }) => {
     requestAccess: requestWalletAccess,
     disconnect: disconnectWallet,
     switchToTargetChain: switchWalletToTargetChain,
-    isAuthenticated: isConnectedWalletAccountAuthenticated,
     isLoading: isLoadingWallet,
   } = useWallet();
   const ensName = useEnsName(connectedWalletAccountAddress);
   const { signIn: signInConnectedWalletAccount } = useWalletAuthentication();
   const { address: loggedInAccountAddress } = useSessionState();
   const { destroy: signOut } = useSessionActions();
-  const connectedFarcasterAccounts = useConnectedFarcasterAccounts();
-  const hasVerifiedFarcasterAccount = connectedFarcasterAccounts?.length > 0;
-  const hasFarcasterAccountKey =
-    hasVerifiedFarcasterAccount &&
-    connectedFarcasterAccounts.some((a) => a.hasAccountKey);
-
   const userAccountAddress =
     connectedWalletAccountAddress ?? loggedInAccountAddress;
 
@@ -413,14 +403,8 @@ const NavBar = ({ navigationStack, actions: customActions }) => {
       case "copy-account-address":
         navigator.clipboard.writeText(userAccountAddress);
         break;
-      case "open-warpcast":
-        window.open("https://warpcast.com/~/channel/nouns", "_blank");
-        break;
       case "open-flows":
         window.open("https://flows.wtf", "_blank");
-        break;
-      case "open-camp-changelog":
-        window.open("https://warpcast.com/~/channel/camp", "_blank");
         break;
       case "open-camp-discord":
         window.open("https://discord.gg/kXjMV8kTnk", "_blank");
@@ -451,9 +435,6 @@ const NavBar = ({ navigationStack, actions: customActions }) => {
         break;
       case "open-treasury-dialog":
         openTreasuryDialog();
-        break;
-      case "setup-farcaster":
-        openFarcasterSetupDialog();
         break;
       case "sign-in": {
         try {
@@ -778,11 +759,6 @@ const NavBar = ({ navigationStack, actions: customActions }) => {
                 title: "External",
                 children: [
                   {
-                    id: "open-warpcast",
-                    title: "Farcaster",
-                    iconRight: <span>{"\u2197"}</span>,
-                  },
-                  {
                     id: "open-flows",
                     title: "Flows",
                     iconRight: <span>{"\u2197"}</span>,
@@ -794,11 +770,6 @@ const NavBar = ({ navigationStack, actions: customActions }) => {
                 title: "Camp",
                 children: [
                   { id: "open-settings-dialog", title: "Settings" },
-                  {
-                    id: "open-camp-changelog",
-                    title: "Changelog",
-                    iconRight: <span>{"\u2197"}</span>,
-                  },
                   {
                     id: "open-camp-discord",
                     title: "Discord",
@@ -859,19 +830,6 @@ const NavBar = ({ navigationStack, actions: customActions }) => {
                         id: "open-drafts-dialog",
                         title: "Proposal & topic drafts",
                       },
-                      !hasVerifiedFarcasterAccount
-                        ? null
-                        : !hasFarcasterAccountKey
-                          ? {
-                              id: "setup-farcaster",
-                              title: "Setup Farcaster",
-                            }
-                          : !isConnectedWalletAccountAuthenticated
-                            ? {
-                                id: "sign-in",
-                                title: "Authenticate account",
-                              }
-                            : null,
                     ].filter(Boolean),
                   },
                   daoSection,

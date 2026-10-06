@@ -8,22 +8,13 @@ import {
 import { Cross as CrossIcon } from "@shades/ui-web/icons";
 import Button from "@shades/ui-web/button";
 import Select from "@shades/ui-web/select";
-import Avatar from "@shades/ui-web/avatar";
 import { CHAIN_ID } from "@/constants/env";
 import { getChain } from "@/utils/chains";
-import { pickDisplayName as pickFarcasterAccountDisplayName } from "@/utils/farcaster";
 import { REPOST_REGEX } from "@/utils/votes-and-feedbacks";
 import { useProposal, useDelegate } from "@/store";
-import { useConnectedFarcasterAccounts } from "@/hooks/farcaster";
 import { usePriorVotes } from "@/hooks/token-contract";
 import { useWallet } from "@/hooks/wallet";
-import { useDialog } from "@/hooks/global-dialogs";
-import NativeSelect from "@/components/native-select";
 import AccountPreviewPopoverTrigger from "@/components/account-preview-popover-trigger";
-
-const getByteLength = (string) =>
-  new TextEncoder("utf-8").encode(string).length;
-
 const MarkdownRichText = React.lazy(
   () => import("@/components/markdown-rich-text"),
 );
@@ -62,38 +53,11 @@ const ProposalActionForm = ({
     requestAccess: requestWalletAccess,
     switchToTargetChain: requestWalletNetworkSwitchToTargetChain,
     isLoading: hasPendingWalletAction,
-    isAuthenticated,
   } = useWallet();
 
   const chain = getChain(CHAIN_ID);
 
   const isConnectedToTargetChainId = connectedChainId === CHAIN_ID;
-
-  const [
-    selectedFarcasterAccountFidByWalletAccountAddress,
-    setSelectedFarcasterAccount,
-  ] = React.useState({});
-  const farcasterAccounts = useConnectedFarcasterAccounts({
-    enabled: mode === "farcaster-comment",
-  });
-
-  const selectedFarcasterAccountFid = (() => {
-    if (connectedWalletAccountAddress == null) return null;
-
-    const selectedFid =
-      selectedFarcasterAccountFidByWalletAccountAddress[
-        connectedWalletAccountAddress.toLowerCase()
-      ];
-
-    if (selectedFid != null) return selectedFid;
-
-    return farcasterAccounts?.[0]?.fid;
-  })();
-
-  const { open: openFarcasterSetupDialog } = useDialog("farcaster-setup");
-  const { open: openAuthenticationDialog } = useDialog(
-    "account-authentication",
-  );
   const connectedDelegate = useDelegate(connectedWalletAccountAddress);
 
   const proposal = useProposal(proposalId);
@@ -109,24 +73,16 @@ const ProposalActionForm = ({
   const hasRepostTarget = repostTargetFeedItems?.length > 0;
 
   const hasRequiredInputs = (() => {
-    switch (mode) {
-      case "farcaster-comment":
-        return (
-          reason.trim().length > 0 && getByteLength(reason) <= 320 // Farcaster text limit is set in bytes
-        );
-      default: {
-        if (hasReplyTarget) {
-          const hasMissingReply = replyTargetFeedItems.some(
-            (item) =>
-              repliesByTargetFeedItemId[item.id] == null ||
-              repliesByTargetFeedItemId[item.id].trim() === "",
-          );
-          return !hasMissingReply && support != null;
-        }
-        if (setSupport == null) return reason.trim().length > 0;
-        return support != null;
-      }
+    if (hasReplyTarget) {
+      const hasMissingReply = replyTargetFeedItems.some(
+        (item) =>
+          repliesByTargetFeedItemId[item.id] == null ||
+          repliesByTargetFeedItemId[item.id].trim() === "",
+      );
+      return !hasMissingReply && support != null;
     }
+    if (setSupport == null) return reason.trim().length > 0;
+    return support != null;
   })();
 
   if (mode == null) throw new Error();
@@ -136,43 +92,6 @@ const ProposalActionForm = ({
       return `Switch to ${CHAIN_ID === 1 ? "Ethereum Mainnet" : chain.name} to ${
         mode === "vote" ? "vote" : "comment"
       }.`;
-
-    if (mode === "farcaster-comment") {
-      const selectedAccount = farcasterAccounts?.find(
-        (a) => String(a.fid) === String(selectedFarcasterAccountFid),
-      );
-
-      if (
-        farcasterAccounts?.length === 0 ||
-        (selectedAccount != null && !selectedAccount.hasAccountKey)
-      )
-        return (
-          <>
-            <p>
-              To cast from Camp you need to verify your address (
-              {connectedWalletAccountAddress.slice(0, 6)}...
-              {connectedWalletAccountAddress.slice(-4)}) with the Farcaster
-              account you wish to use.
-            </p>
-          </>
-        );
-
-      if (getByteLength(reason) > 320) {
-        const length = getByteLength(reason);
-        return <>Casts are limited to 320 bytes (currently at {length})</>;
-      }
-
-      if (selectedAccount != null && selectedAccount.nounerAddress == null) {
-        return (
-          <>
-            Camp defaults to only show casts from accounts that have had onchain
-            interactions with Nouns. Users that hasn’t opted out of this filter
-            will not see this cast.
-          </>
-        );
-      }
-    }
-
     if (mode === "vote") {
       if (currentVoteCount > 0 && proposalVoteCount === 0)
         return (
@@ -329,124 +248,13 @@ const ProposalActionForm = ({
           <label className="message-input-label" htmlFor="message-input">
             {connectedWalletAccountAddress == null ? null : (
               <>
-                {mode === "farcaster-comment" ? (
-                  (() => {
-                    if (
-                      farcasterAccounts == null ||
-                      farcasterAccounts.length === 0
-                    )
-                      return <>Comment as ...</>;
-
-                    if (farcasterAccounts.length === 1) {
-                      const selectedAccount = farcasterAccounts.find(
-                        (a) =>
-                          String(a.fid) === String(selectedFarcasterAccountFid),
-                      );
-
-                      const { username, pfpUrl } = selectedAccount;
-                      const displayName =
-                        pickFarcasterAccountDisplayName(selectedAccount);
-
-                      return (
-                        <>
-                          <span className="wide-only">Comment as </span>
-                          {pfpUrl != null && (
-                            <Avatar
-                              url={pfpUrl}
-                              size="1.2em"
-                              css={css({
-                                display: "inline-block",
-                                marginRight: "0.3em",
-                                verticalAlign: "sub",
-                              })}
-                            />
-                          )}
-                          <em>{displayName}</em>
-                          <span className="wide-only">
-                            {username !== displayName && <> (@{username})</>}
-                          </span>
-                        </>
-                      );
-                    }
-
-                    return (
-                      <>
-                        <span className="wide-only">Comment as </span>
-                        <NativeSelect
-                          value={String(selectedFarcasterAccountFid)}
-                          options={farcasterAccounts.map((a, i, as) => {
-                            const { displayName, username } = a;
-
-                            let label =
-                              displayName ?? username ?? `FID ${a.fid}`;
-
-                            if (username != null && username !== displayName)
-                              label += ` (@${username})`;
-
-                            const hasDuplicateDisplayName = as.some(
-                              (a, y) =>
-                                i !== y && a.displayName === displayName,
-                            );
-
-                            if (hasDuplicateDisplayName)
-                              label += ` (FID ${a.fid})`;
-
-                            return { value: String(a.fid), label };
-                          })}
-                          onChange={(e) => {
-                            setSelectedFarcasterAccount((s) => ({
-                              ...s,
-                              [connectedWalletAccountAddress.toLowerCase()]:
-                                e.target.value,
-                            }));
-                          }}
-                          renderSelectedOption={(o) => {
-                            const account = farcasterAccounts.find(
-                              (a) => String(a.fid) === o.value,
-                            );
-                            const { displayName, username, pfpUrl } = account;
-                            return (
-                              <>
-                                {pfpUrl != null && (
-                                  <Avatar
-                                    url={pfpUrl}
-                                    size="1.2em"
-                                    css={css({
-                                      display: "inline-block",
-                                      marginRight: "0.3em",
-                                      verticalAlign: "sub",
-                                    })}
-                                  />
-                                )}
-                                <em>
-                                  {displayName ??
-                                    username ??
-                                    `FID ${account.fid}`}
-                                </em>
-                                <span className="wide-only">
-                                  {username != null &&
-                                    username !== displayName && (
-                                      <> (@{username})</>
-                                    )}
-                                </span>
-                              </>
-                            );
-                          }}
-                        />
-                      </>
-                    );
-                  })()
-                ) : (
-                  <>
-                    <span className="wide-only">
-                      {mode === "vote" ? "Cast vote as" : "Comment as"}{" "}
-                    </span>
-                    <AccountPreviewPopoverTrigger
-                      showAvatar
-                      accountAddress={connectedWalletAccountAddress}
-                    />
-                  </>
-                )}
+                <span className="wide-only">
+                  {mode === "vote" ? "Cast vote as" : "Comment as"}{" "}
+                </span>
+                <AccountPreviewPopoverTrigger
+                  showAvatar
+                  accountAddress={connectedWalletAccountAddress}
+                />
               </>
             )}
           </label>
@@ -467,7 +275,6 @@ const ProposalActionForm = ({
                   label: {
                     vote: "Cast vote",
                     "onchain-comment": "Comment onchain",
-                    "farcaster-comment": "Comment with Farcaster",
                   }[m],
                 }))}
                 renderTriggerContent={(value) => {
@@ -476,8 +283,6 @@ const ProposalActionForm = ({
                       return "Cast vote";
                     case "onchain-comment":
                       return "Onchain comment";
-                    case "farcaster-comment":
-                      return "Farcaster comment";
                     default:
                       throw new Error();
                   }
@@ -500,7 +305,7 @@ const ProposalActionForm = ({
             setPending(true);
             // setError(null);
             try {
-              await onSubmit({ fid: selectedFarcasterAccountFid });
+              await onSubmit();
               // } catch (e) {
               //   setError(e);
               //   throw e;
@@ -754,82 +559,6 @@ const ProposalActionForm = ({
                         )}
                       </>
                     );
-
-                  case "farcaster-comment": {
-                    if (connectedWalletAccountAddress == null)
-                      return (
-                        <Button
-                          type="button"
-                          onClick={() => {
-                            requestWalletAccess();
-                          }}
-                          size={buttonSize}
-                        >
-                          Connect wallet to cast
-                        </Button>
-                      );
-
-                    if (farcasterAccounts == null)
-                      return (
-                        <Button
-                          type="button"
-                          size={buttonSize}
-                          isLoading
-                          disabled
-                        >
-                          Cast comment
-                        </Button>
-                      );
-
-                    const selectedAccount = farcasterAccounts.find(
-                      (a) =>
-                        String(a.fid) === String(selectedFarcasterAccountFid),
-                    );
-
-                    if (
-                      selectedAccount == null ||
-                      !selectedAccount.hasAccountKey
-                    )
-                      return (
-                        <Button
-                          type="button"
-                          size={buttonSize}
-                          onClick={() => {
-                            openFarcasterSetupDialog();
-                          }}
-                        >
-                          {selectedAccount == null
-                            ? "Setup account to cast"
-                            : "Setup account key to cast"}
-                        </Button>
-                      );
-
-                    if (!isAuthenticated)
-                      return (
-                        <Button
-                          type="button"
-                          size={buttonSize}
-                          onClick={() => {
-                            openAuthenticationDialog({ intent: "cast" });
-                          }}
-                        >
-                          Log in to cast
-                        </Button>
-                      );
-
-                    return (
-                      <Button
-                        type="submit"
-                        variant="primary"
-                        disabled={isPending || !hasRequiredInputs}
-                        isLoading={isPending}
-                        size={buttonSize}
-                      >
-                        Cast comment
-                      </Button>
-                    );
-                  }
-
                   default:
                     throw new Error();
                 }
@@ -908,10 +637,7 @@ const SupportSelect = ({ mode, value, ...props }) => (
 
 const QuotedFeedItem = ({ component: Component = "div", item, onCancel }) => {
   // Strip reposts (some risk of stripping unintened content here (it’s fine))
-  const quotedText =
-    item.type === "farcaster-cast"
-      ? item.body
-      : item.reason.replaceAll(REPOST_REGEX, "");
+  const quotedText = item.reason.replaceAll(REPOST_REGEX, "");
   return (
     <Component
       css={(t) =>

@@ -15,10 +15,8 @@ import {
 import Button from "@shades/ui-web/button";
 import * as Popover from "@shades/ui-web/popover";
 import InlineButton from "@shades/ui-web/inline-button";
-import Avatar from "@shades/ui-web/avatar";
 import { resolveAddress as resolveContractAddress } from "@/contracts";
 import { CHAIN_ID } from "@/constants/env";
-import { pickDisplayName as pickFarcasterAccountDisplayName } from "@/utils/farcaster";
 import { buildEtherscanLink } from "@/utils/etherscan";
 import { useActions, useDelegate, useAccount } from "@/store";
 import { useWallet } from "@/hooks/wallet";
@@ -26,7 +24,6 @@ import { useDialog } from "@/hooks/global-dialogs";
 import useEnsName from "@/hooks/ens-name";
 import useAccountDisplayName from "@/hooks/account-display-name";
 import useEnsText from "@/hooks/ens-text";
-import { useAccountsWithVerifiedEthAddress as useFarcasterAccountsWithVerifiedEthAddress } from "@/hooks/farcaster";
 import AccountAvatar from "@/components/account-avatar";
 import NounPreviewPopoverTrigger from "@/components/noun-preview-popover-trigger";
 import NextLink from "next/link";
@@ -142,9 +139,6 @@ const AccountPreviewPopoverTrigger = React.forwardRef(
 const AccountPreview = React.forwardRef(({ accountAddress, close }, ref) => {
   const { address: connectedAccountAddress } = useWallet();
   const connectedAccount = useAccount(connectedAccountAddress);
-  const farcasterAccounts =
-    useFarcasterAccountsWithVerifiedEthAddress(accountAddress);
-
   const isMe = accountAddress.toLowerCase() === connectedAccountAddress;
   const enableImpersonation = !isMe && (!isProduction || isDebugSession);
   const enableDelegation = connectedAccount?.nouns?.length > 0;
@@ -516,59 +510,6 @@ const AccountPreview = React.forwardRef(({ accountAddress, close }, ref) => {
                 {
                   id: "external",
                   children: [
-                    ...(farcasterAccounts ?? []).map((farcasterAccount) => ({
-                      id: `open-warpcast:${farcasterAccount.fid}`,
-                      label: (
-                        <div>
-                          Warpcast
-                          <div
-                            css={(t) =>
-                              css({
-                                marginTop: "0.2rem",
-                                overflow: "hidden",
-                                textOverflow: "ellipsis",
-                                fontSize: t.text.sizes.small,
-                                color: t.colors.textDimmed,
-                              })
-                            }
-                          >
-                            {(() => {
-                              const { username, pfpUrl } = farcasterAccount;
-                              const displayName =
-                                pickFarcasterAccountDisplayName(
-                                  farcasterAccount,
-                                );
-                              return (
-                                <span
-                                  title={[
-                                    displayName,
-                                    username != displayName && `(@${username})`,
-                                  ]
-                                    .filter(Boolean)
-                                    .join(" ")}
-                                >
-                                  {pfpUrl != null && (
-                                    <Avatar
-                                      url={pfpUrl}
-                                      size="1.2em"
-                                      css={css({
-                                        display: "inline-block",
-                                        marginRight: "0.3em",
-                                        verticalAlign: "sub",
-                                      })}
-                                    />
-                                  )}
-                                  {displayName}
-                                  {username !== displayName && (
-                                    <> (@{username})</>
-                                  )}
-                                </span>
-                              );
-                            })()}
-                          </div>
-                        </div>
-                      ),
-                    })),
                     {
                       id: "open-etherscan",
                       label: "Etherscan",
@@ -585,19 +526,6 @@ const AccountPreview = React.forwardRef(({ accountAddress, close }, ref) => {
                 },
               ]}
               onAction={(key) => {
-                if (key.startsWith("open-warpcast:")) {
-                  const fid = key.split(":")[1];
-                  const farcasterAccount = farcasterAccounts.find(
-                    (a) => String(a.fid) === fid,
-                  );
-                  if (farcasterAccount == null) throw new Error();
-                  window.open(
-                    `https://warpcast.com/${farcasterAccount.username}`,
-                    "_blank",
-                  );
-                  return;
-                }
-
                 switch (key) {
                   case "manage-delegation":
                     openDelegationDialog();

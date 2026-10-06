@@ -3,11 +3,8 @@ import { css } from "@emotion/react";
 import Dialog from "@shades/ui-web/dialog";
 import Button from "@shades/ui-web/button";
 import DialogHeader from "@shades/ui-web/dialog-header";
-import Avatar from "@shades/ui-web/avatar";
 import { useWallet, useWalletAuthentication } from "@/hooks/wallet";
 import { useDialog } from "@/hooks/global-dialogs";
-import { useConnectedFarcasterAccounts } from "@/hooks/farcaster";
-import { pickDisplayName as pickFarcasterAccountDisplayName } from "@/utils/farcaster";
 import { reportError } from "@/utils/monitoring";
 
 const AccountAuthenticationDialog = ({ isOpen, close }) => {
@@ -29,7 +26,6 @@ const Content = ({ titleProps, dismiss }) => {
   const { isAuthenticated } = useWallet();
   const { signIn: authenticateConnectedAccount, state: authenticationState } =
     useWalletAuthentication();
-  const connectedFarcasterAccount = useConnectedFarcasterAccounts()?.[0];
   const { data: dialogData } = useDialog("account-authentication");
   const userIntent = dialogData?.intent;
   const onSuccess = dialogData?.onSuccess;
@@ -64,39 +60,7 @@ const Content = ({ titleProps, dismiss }) => {
       />
       <main>
         {isAuthenticated ? (
-          <>
-            {(() => {
-              if (connectedFarcasterAccount == null) return null;
-              const { pfpUrl } = connectedFarcasterAccount;
-              const displayName = pickFarcasterAccountDisplayName(
-                connectedFarcasterAccount,
-              );
-              return (
-                <>
-                  <p>
-                    You can now cast and like stuff with your Farcaster account
-                    (
-                    {pfpUrl != null && (
-                      <Avatar
-                        url={pfpUrl}
-                        size="1.2em"
-                        css={css({
-                          display: "inline-block",
-                          marginRight: "0.3em",
-                          verticalAlign: "sub",
-                        })}
-                      />
-                    )}
-                    <b>{displayName}</b>) from Camp.
-                  </p>
-                  <p className="small">
-                    If you wish to log out, there’s an option for that in the
-                    account menu up in the top right corner.
-                  </p>
-                </>
-              );
-            })()}
-          </>
+          <p>Your account is authenticated.</p>
         ) : (
           <>
             {

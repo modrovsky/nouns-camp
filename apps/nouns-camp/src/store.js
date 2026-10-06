@@ -31,12 +31,6 @@ import {
 } from "@/utils/candidates";
 import usePublicClient from "@/hooks/public-client";
 import useBlockNumber from "@/hooks/block-number";
-import useSetting from "@/hooks/setting";
-import {
-  useProposalCasts,
-  useCandidateCasts,
-  useRecentCasts,
-} from "@/hooks/farcaster";
 import {
   parsedSubgraphFetch,
   FULL_PROPOSAL_FIELDS,
@@ -2287,26 +2281,20 @@ export const useEnsCache = () =>
   }));
 
 export const useProposalFeedItems = (proposalId) => {
-  const [farcasterFilter] = useSetting("farcaster-cast-filter");
-
   const eagerLatestBlockNumber = useBlockNumber({
     watch: true,
     cacheTime: 20_000,
   });
 
   const latestBlockNumber = React.useDeferredValue(eagerLatestBlockNumber);
-
-  const casts = useProposalCasts(proposalId, { filter: farcasterFilter });
-
   return useStore(
     React.useCallback(
       (s) =>
         buildProposalFeed(s, proposalId, {
           latestBlockNumber,
-          casts,
           includePropdateItems: true,
         }),
-      [proposalId, latestBlockNumber, casts],
+      [proposalId, latestBlockNumber],
     ),
   );
 };
@@ -2317,18 +2305,13 @@ export const useCandidateFeedItems = (candidateId) => {
     cacheTime: 20_000,
   });
   const latestBlockNumber = React.useDeferredValue(eagerLatestBlockNumber);
-
-  const [farcasterFilter] = useSetting("farcaster-cast-filter");
-  const casts = useCandidateCasts(candidateId, { filter: farcasterFilter });
-
   return useStore(
     React.useCallback(
       (s) =>
         buildCandidateFeed(s, candidateId, {
           latestBlockNumber,
-          casts,
         }),
-      [candidateId, latestBlockNumber, casts],
+      [candidateId, latestBlockNumber],
     ),
   );
 };
@@ -2349,29 +2332,14 @@ export const useMainFeedItems = (categories, { enabled = true }) => {
     enabled,
   });
   const latestBlockNumber = React.useDeferredValue(eagerLatestBlockNumber);
-
-  const [farcasterFilter] = useSetting("farcaster-cast-filter");
-  const casts = useRecentCasts({ filter: farcasterFilter });
-
   return useStore(
     React.useCallback(
       (s) => {
         if (!enabled) return [];
-
-        const castsByProposalId = arrayUtils.groupBy(
-          (c) => c.proposalId,
-          casts,
-        );
-        const castsByCandidateId = arrayUtils.groupBy(
-          (c) => c.candidateId,
-          casts,
-        );
-
         const buildProposalItems = () =>
           Object.keys(s.proposalsById).flatMap((proposalId) =>
             buildProposalFeed(s, proposalId, {
               latestBlockNumber,
-              casts: castsByProposalId[proposalId],
               includePropdateItems: false,
               includeCandidateItems: false,
             }),
@@ -2383,24 +2351,14 @@ export const useMainFeedItems = (categories, { enabled = true }) => {
               const candidate = s.proposalCandidatesById[candidateId];
               return candidate.latestVersion?.type !== "topic";
             })
-            .flatMap((candidateId) =>
-              buildCandidateFeed(s, candidateId, {
-                casts: castsByCandidateId[candidateId],
-              }),
-            );
-
+            .flatMap((candidateId) => buildCandidateFeed(s, candidateId));
         const buildTopicItems = () =>
           Object.keys(s.proposalCandidatesById)
             .filter((candidateId) => {
               const candidate = s.proposalCandidatesById[candidateId];
               return candidate.latestVersion?.type === "topic";
             })
-            .flatMap((candidateId) =>
-              buildCandidateFeed(s, candidateId, {
-                casts: castsByCandidateId[candidateId],
-              }),
-            );
-
+            .flatMap((candidateId) => buildCandidateFeed(s, candidateId));
         const buildPropdateItems = () =>
           Object.values(s.propdatesByProposalId).flatMap((propdates) =>
             propdates.map(buildPropdateFeedItem),
@@ -2445,7 +2403,7 @@ export const useMainFeedItems = (categories, { enabled = true }) => {
           feedItems,
         );
       },
-      [enabled, categories, casts, latestBlockNumber],
+      [enabled, categories, latestBlockNumber],
     ),
   );
 };

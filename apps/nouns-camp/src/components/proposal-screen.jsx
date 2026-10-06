@@ -67,7 +67,6 @@ import { useSendProposalFeedback } from "@/hooks/data-contract";
 import useApproximateBlockTimestampCalculator from "@/hooks/approximate-block-timestamp-calculator";
 import { useWallet } from "@/hooks/wallet";
 import useMatchDesktopLayout from "@/hooks/match-desktop-layout";
-import { useSubmitProposalCast } from "@/hooks/farcaster";
 import useRecentAuctionProceeds from "@/hooks/recent-auction-proceeds";
 import { useCollection as useDrafts } from "@/hooks/drafts";
 import Layout, { MainContentContainer } from "@/components/layout";
@@ -200,11 +199,8 @@ const ProposalMainSection = ({ proposalId, scrollContainerRef }) => {
 
   const possibleFormActions =
     !hasCastVote && isVotingOngoing
-      ? ["vote", "onchain-comment", "farcaster-comment"]
-      : ["onchain-comment", "farcaster-comment"];
-
-  const submitProposalCast = useSubmitProposalCast(proposalId);
-
+      ? ["vote", "onchain-comment"]
+      : ["onchain-comment"];
   const defaultFormAction = possibleFormActions[0];
 
   const currentFormAction =
@@ -247,23 +243,21 @@ const ProposalMainSection = ({ proposalId, scrollContainerRef }) => {
   ]);
 
   const replyTargetFeedItems = React.useMemo(() => {
-    if (currentFormAction === "farcaster-comment") return [];
     const pendingReplyTargetFeedItemIds = Object.keys(pendingReplies ?? {});
     return pendingReplyTargetFeedItemIds
       .map((targetFeedItemId) =>
         feedItems.find((i) => i.id === targetFeedItemId),
       )
-      .filter((item) => item != null && item.type !== "farcaster-cast");
-  }, [currentFormAction, feedItems, pendingReplies]);
+      .filter(Boolean);
+  }, [feedItems, pendingReplies]);
 
   const repostTargetFeedItems = React.useMemo(() => {
-    if (currentFormAction === "farcaster-comment") return [];
     if (!pendingReposts) return [];
 
     return pendingReposts
       .map((id) => feedItems.find((i) => i.id === id))
       .filter(Boolean);
-  }, [currentFormAction, feedItems, pendingReposts]);
+  }, [feedItems, pendingReposts]);
 
   const reasonWithRepostsAndReplies = React.useMemo(() => {
     const replyMarkedQuotesAndReplyText = replyTargetFeedItems
@@ -316,16 +310,6 @@ const ProposalMainSection = ({ proposalId, scrollContainerRef }) => {
 
   const onReply = React.useCallback(
     (postId) => {
-      const targetPost = feedItems.find((i) => i.id === postId);
-
-      if (targetPost.type === "farcaster-cast") {
-        window.open(
-          `https://warpcast.com/${targetPost.authorUsername}/${targetPost.castHash}`,
-          "_blank",
-        );
-        return;
-      }
-
       addReply(postId);
 
       const input = proposalActionInputRef.current;
@@ -336,7 +320,7 @@ const ProposalMainSection = ({ proposalId, scrollContainerRef }) => {
         input.selectionEnd = 0;
       }, 0);
     },
-    [feedItems, addReply],
+    [addReply],
   );
 
   const cancelReply = (id) => {
@@ -584,7 +568,7 @@ const ProposalMainSection = ({ proposalId, scrollContainerRef }) => {
     }
   };
 
-  const handleFormSubmit = async (data) => {
+  const handleFormSubmit = async () => {
     switch (currentFormAction) {
       case "vote":
         // A contract simulation  takes a second to to do its thing after every
@@ -600,11 +584,6 @@ const ProposalMainSection = ({ proposalId, scrollContainerRef }) => {
         if (sendProposalFeedback == null) return;
         await sendProposalFeedback();
         break;
-
-      case "farcaster-comment":
-        await submitProposalCast({ fid: data.fid, text: pendingComment });
-        break;
-
       default:
         throw new Error();
     }
@@ -635,8 +614,8 @@ const ProposalMainSection = ({ proposalId, scrollContainerRef }) => {
     context: "proposal",
     // variant: "boxed",
     items: feedItems,
-    onReply: currentFormAction === "farcaster-comment" ? null : onReply,
-    onRepost: currentFormAction === "farcaster-comment" ? null : onRepost,
+    onReply,
+    onRepost,
   };
 
   return (

@@ -69,12 +69,6 @@ const dialogs = [
     ),
   },
   {
-    key: "farcaster-setup",
-    component: ReactLazyWithPreload(
-      () => import("@/components/farcaster-setup-dialog"),
-    ),
-  },
-  {
     key: "streams",
     component: ReactLazyWithPreload(
       () => import("@/components/streams-dialog"),

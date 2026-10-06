@@ -29,8 +29,6 @@
   "dependencies": {
     "@emotion/cache": "^11.14.0",
     "@emotion/react": "^11.14.0",
-    "@farcaster/core": "^0.16.4",
-    "@noble/ed25519": "^2.2.3",
     "@nomonouns/assets": "^0.12.0",
     "@nouns/contracts": "^0.3.0",
     "@nouns/sdk": "^0.4.0",
@@ -45,7 +43,6 @@
     "@tanstack/react-query": "^5.66.0",
     "@vercel/analytics": "^1.4.1",
     "@vercel/edge-config": "^1.4.0",
-    "@vercel/kv": "^2.0.0",
     "@vercel/og": "^0.6.5",
     "abitype": "^1.0.8",
     "date-fns": "^2.29.3",

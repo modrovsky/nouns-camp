@@ -75,7 +75,6 @@ const sortCandidatesChronological = (cs) =>
 const sortCandidatesReverseChronological = (cs) =>
   arrayUtils.sortBy({ value: (c) => c.createdTimestamp, order: "desc" }, cs);
 
-// Note: Farcaster comments not taken into account
 const sortCandidatesByLastActivity = (cs) =>
   arrayUtils.sortBy(
     {

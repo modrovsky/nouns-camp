@@ -44,8 +44,6 @@ import VotingBar from "@/components/voting-bar";
 import NounPreviewPopoverTrigger from "@/components/noun-preview-popover-trigger";
 import ProposalList from "@/components/sectioned-list";
 import { buildEtherscanLink } from "@/utils/etherscan";
-import { useAccountsWithVerifiedEthAddress as useFarcasterAccountsWithVerifiedEthAddress } from "@/hooks/farcaster";
-import Avatar from "@shades/ui-web/avatar";
 import AccountPreviewPopoverTrigger from "@/components/account-preview-popover-trigger";
 import useEnsText from "@/hooks/ens-text";
 import useEnsName from "@/hooks/ens-name";
@@ -456,10 +454,6 @@ const VoterHeader = ({ accountAddress }) => {
     matchingContract == null || displayName_ !== truncatedAddress
       ? displayName_
       : matchingContract.name;
-
-  const farcasterAccounts =
-    useFarcasterAccountsWithVerifiedEthAddress(accountAddress);
-
   const representedNouns = delegate?.nounsRepresented ?? [];
 
   const ownedNouns = account?.nouns ?? [];
@@ -570,59 +564,6 @@ const VoterHeader = ({ accountAddress }) => {
                   {
                     id: "external",
                     children: [
-                      ...(farcasterAccounts ?? []).map((farcasterAccount) => ({
-                        id: `open-warpcast:${farcasterAccount.fid}`,
-                        label: (
-                          <div>
-                            Warpcast
-                            <div
-                              css={(t) =>
-                                css({
-                                  marginTop: "0.2rem",
-                                  overflow: "hidden",
-                                  textOverflow: "ellipsis",
-                                  fontSize: t.text.sizes.small,
-                                  color: t.colors.textDimmed,
-                                })
-                              }
-                            >
-                              {(() => {
-                                const { fid, username, displayName, pfpUrl } =
-                                  farcasterAccount;
-                                return (
-                                  <span
-                                    title={[
-                                      displayName ?? username ?? `FID ${fid}`,
-                                      username != null &&
-                                        username !== displayName &&
-                                        `(@${username})`,
-                                    ]
-                                      .filter(Boolean)
-                                      .join(" ")}
-                                  >
-                                    {pfpUrl != null && (
-                                      <Avatar
-                                        url={pfpUrl}
-                                        size="1.2em"
-                                        css={css({
-                                          display: "inline-block",
-                                          marginRight: "0.3em",
-                                          verticalAlign: "sub",
-                                        })}
-                                      />
-                                    )}
-                                    {displayName ?? username ?? `FID ${fid}`}
-                                    {username != null &&
-                                      username !== displayName && (
-                                        <> (@{username})</>
-                                      )}
-                                  </span>
-                                );
-                              })()}
-                            </div>
-                          </div>
-                        ),
-                      })),
                       {
                         id: "open-etherscan",
                         label: "Etherscan",
@@ -635,19 +576,6 @@ const VoterHeader = ({ accountAddress }) => {
                   },
                 ]}
                 onAction={(key) => {
-                  if (key.startsWith("open-warpcast:")) {
-                    const fid = key.split(":")[1];
-                    const farcasterAccount = farcasterAccounts.find(
-                      (a) => String(a.fid) === fid,
-                    );
-                    if (farcasterAccount == null) throw new Error();
-                    window.open(
-                      `https://warpcast.com/${farcasterAccount.username}`,
-                      "_blank",
-                    );
-                    return;
-                  }
-
                   switch (key) {
                     case "copy-account-address":
                       navigator.clipboard.writeText(

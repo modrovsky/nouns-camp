@@ -7,30 +7,7 @@ import {
   createRepostExtractor,
 } from "@/utils/votes-and-feedbacks";
 import { getSponsorSignatures as getCandidateSponsorSignatures } from "@/utils/candidates";
-import { pickDisplayName as pickFarcasterAccountDisplayName } from "@/utils/farcaster";
 import { base } from "viem/chains";
-
-const createFarcasterCastItem = (cast) => {
-  let displayName = pickFarcasterAccountDisplayName(cast.account);
-
-  if (displayName !== cast.account.username)
-    displayName += ` (@${cast.account.username})`;
-
-  return {
-    type: "farcaster-cast",
-    id: cast.hash,
-    castHash: cast.hash,
-    authorAccount: cast.account.nounerAddress,
-    authorFid: cast.account.fid,
-    authorAvatarUrl: cast.account.pfpUrl,
-    authorDisplayName: displayName,
-    authorUsername: cast.account.username,
-    body: cast.text,
-    timestamp: new Date(cast.timestamp),
-    replyingCasts: cast.replies,
-  };
-};
-
 const buildVoteAndFeedbackPostFeedItems = ({
   proposalId,
   candidateId,
@@ -130,7 +107,6 @@ export const buildProposalFeed = (
   proposalId,
   {
     latestBlockNumber,
-    casts,
     includeCandidateItems = true,
     includePropdateItems = true,
   },
@@ -147,14 +123,6 @@ export const buildProposalFeed = (
       : buildCandidateFeed(storeState, proposal.candidateId, {
           includeFeedbackPosts: false,
         });
-
-  const castItems =
-    casts?.map((c) => {
-      const item = createFarcasterCastItem(c);
-      item.proposalId = proposalId;
-      return item;
-    }) ?? [];
-
   let voteAndFeedbackPostItems = buildVoteAndFeedbackPostFeedItems({
     proposalId,
     votes: proposal.votes,
@@ -200,7 +168,6 @@ export const buildProposalFeed = (
     ...voteAndFeedbackPostItems,
     ...propdateItems,
     ...updateEventItems,
-    ...castItems,
   ];
 
   if (proposal.createdTimestamp != null)
@@ -305,21 +272,13 @@ export const buildProposalFeed = (
 export const buildCandidateFeed = (
   storeState,
   candidateId,
-  { casts, includeFeedbackPosts = true } = {},
+  { includeFeedbackPosts = true } = {},
 ) => {
   const candidate = storeState.proposalCandidatesById[candidateId];
 
   if (candidate == null) return [];
 
   const targetProposalId = candidate.latestVersion?.targetProposalId;
-
-  const castItems =
-    casts?.map((c) => {
-      const item = createFarcasterCastItem(c);
-      item.candidateId = candidateId;
-      return item;
-    }) ?? [];
-
   const feedbackPostItems = includeFeedbackPosts
     ? buildVoteAndFeedbackPostFeedItems({
         candidateId,
@@ -342,9 +301,7 @@ export const buildCandidateFeed = (
         candidateId,
         authorAccount: candidate.proposerId, // only proposer can update
       })) ?? [];
-
-  const items = [...updateEventItems, ...feedbackPostItems, ...castItems];
-
+  const items = [...updateEventItems, ...feedbackPostItems];
   if (candidate.createdBlock != null)
     items.push({
       type: "event",
@@ -598,7 +555,6 @@ export const buildAccountFeed = (storeState, accountAddress_, { filter }) => {
         buildProposalFeed(storeState, proposalId, {
           includePropdates: true,
           includeCandidateItems,
-          // TODO: inject Farcaster casts
         }),
       )
       .filter(

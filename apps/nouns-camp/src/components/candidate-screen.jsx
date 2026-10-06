@@ -66,7 +66,6 @@ import {
 } from "@/hooks/data-contract";
 import { useWallet } from "@/hooks/wallet";
 import useMatchDesktopLayout from "@/hooks/match-desktop-layout";
-import { useSubmitCandidateCast } from "@/hooks/farcaster";
 import { useCollection as useDrafts } from "@/hooks/drafts";
 import { ProposalHeader, ProposalBody } from "@/components/proposal-screen";
 import ProposalActionForm from "@/components/proposal-action-form";
@@ -157,10 +156,7 @@ const ProposalCandidateScreenContent = ({
   const showAdminActions = isProposer && !isCanceled;
 
   const [formAction, setFormAction] = React.useState("onchain-comment");
-  const availableFormActions = ["onchain-comment", "farcaster-comment"];
-
-  const submitCandidateCast = useSubmitCandidateCast(candidateId);
-
+  const availableFormActions = ["onchain-comment"];
   const [isProposalUpdateDiffDialogOpen, toggleProposalUpdateDiffDialog] =
     useSearchParamToggleState("diff", { replace: true });
   const [hasPendingProposalUpdate, setPendingProposalUpdate] =
@@ -209,23 +205,21 @@ const ProposalCandidateScreenContent = ({
   });
 
   const replyTargetFeedItems = React.useMemo(() => {
-    if (formAction === "farcaster-comment") return [];
     const pendingReplyTargetFeedItemIds = Object.keys(pendingReplies ?? {});
     return pendingReplyTargetFeedItemIds
       .map((targetFeedItemId) =>
         feedItems.find((i) => i.id === targetFeedItemId),
       )
-      .filter((item) => item != null && item.type !== "farcaster-cast");
-  }, [formAction, feedItems, pendingReplies]);
+      .filter(Boolean);
+  }, [feedItems, pendingReplies]);
 
   const repostTargetFeedItems = React.useMemo(() => {
-    if (formAction === "farcaster-comment") return [];
     if (!pendingReposts) return [];
 
     return pendingReposts
       .map((id) => feedItems.find((i) => i.id === id))
       .filter(Boolean);
-  }, [formAction, feedItems, pendingReposts]);
+  }, [feedItems, pendingReposts]);
 
   const reasonWithRepostsAndReplies = React.useMemo(() => {
     const replyMarkedQuotesAndReplyText = replyTargetFeedItems
@@ -276,16 +270,6 @@ const ProposalCandidateScreenContent = ({
 
   const onReply = React.useCallback(
     (postId) => {
-      const targetPost = feedItems.find((i) => i.id === postId);
-
-      if (targetPost.type === "farcaster-cast") {
-        window.open(
-          `https://warpcast.com/${targetPost.authorUsername}/${targetPost.castHash}`,
-          "_blank",
-        );
-        return;
-      }
-
       addReply(postId, "");
 
       const input = actionFormInputRef.current;
@@ -296,7 +280,7 @@ const ProposalCandidateScreenContent = ({
         input.selectionEnd = 0;
       }, 0);
     },
-    [feedItems, addReply],
+    [addReply],
   );
 
   const cancelReply = (id) => {
@@ -367,7 +351,7 @@ const ProposalCandidateScreenContent = ({
   const feedbackVoteCountExcludingAbstained =
     signals.forVotes + signals.againstVotes;
 
-  const handleFormSubmit = async (data) => {
+  const handleFormSubmit = async () => {
     switch (formAction) {
       case "onchain-comment":
         // A contract simulation takes a second to do its thing after every
@@ -376,11 +360,6 @@ const ProposalCandidateScreenContent = ({
         if (sendCandidateFeedback == null) return;
         await sendCandidateFeedback();
         break;
-
-      case "farcaster-comment":
-        await submitCandidateCast({ fid: data.fid, text: pendingComment });
-        break;
-
       default:
         throw new Error();
     }
@@ -409,8 +388,8 @@ const ProposalCandidateScreenContent = ({
   const activityFeedProps = {
     context: "candidate",
     items: feedItems,
-    onReply: formAction === "farcaster-comment" ? null : onReply,
-    onRepost: formAction === "farcaster-comment" ? null : onRepost,
+    onReply,
+    onRepost,
   };
 
   const sponsorStatusCallout = (

@@ -34,7 +34,6 @@ import {
 } from "@/hooks/data-contract";
 import { useWallet } from "@/hooks/wallet";
 import useMatchDesktopLayout from "@/hooks/match-desktop-layout";
-import { useSubmitCandidateCast, useSubmitCastReply } from "@/hooks/farcaster";
 import { ProposalHeader, ProposalBody } from "@/components/proposal-screen";
 import ProposalActionForm from "@/components/proposal-action-form";
 import Layout, { MainContentContainer } from "@/components/layout";
@@ -69,16 +68,11 @@ const TopicScreenContent = ({ candidateId }) => {
   const { isProposer, isCanceled } = useScreenContext();
 
   const [formAction, setFormAction] = React.useState("onchain-comment");
-  const availableFormActions = ["onchain-comment", "farcaster-comment"];
-
+  const availableFormActions = ["onchain-comment"];
   const [pendingComment, setPendingComment] = React.useState("");
   const [pendingSupport, setPendingSupport] = React.useState(2);
 
   const [sortStrategy, setSortStrategy] = React.useState("chronological");
-
-  const submitCandidateCast = useSubmitCandidateCast(candidateId);
-  const submitCastReply = useSubmitCastReply();
-
   const [pendingRepostTargetFeedItemIds, setPendingRepostTargetFeedItemIds] =
     React.useState(() => {
       const initialRepostTargetId = searchParams.get("repost-target");
@@ -96,25 +90,13 @@ const TopicScreenContent = ({ candidateId }) => {
       pendingRepliesByTargetItemId: {},
     };
   });
-
-  const countCastReplies = (cast) =>
-    cast.replies.reduce(
-      (sum, replyCast) => sum + 1 + countCastReplies(replyCast),
-      0,
-    );
-
   const { comments: commentCount, replies: replyCount } = feedItems.reduce(
     ({ comments, replies }, item) => {
       const isComment = item.body != null && item.body.trim() !== "";
       const onchainReplyCount = item.replyingItems?.length ?? 0;
-      const castReplyCount =
-        item.replyingCasts?.reduce(
-          (sum, cast) => sum + 1 + countCastReplies(cast),
-          0,
-        ) ?? 0;
       return {
         comments: isComment ? comments + 1 : comments,
-        replies: replies + onchainReplyCount + castReplyCount,
+        replies: replies + onchainReplyCount,
       };
     },
     { comments: 0, replies: 0 },
@@ -122,7 +104,6 @@ const TopicScreenContent = ({ candidateId }) => {
 
   const replyTargetFeedItems = React.useMemo(() => {
     if (activeReplyTargetItemId == null) return [];
-    // if (formAction === "farcaster-comment") return [];
     const replyTargetItem = feedItems.find(
       (i) => i.id === activeReplyTargetItemId,
     );
@@ -131,16 +112,13 @@ const TopicScreenContent = ({ candidateId }) => {
   }, [activeReplyTargetItemId, feedItems]);
 
   const repostTargetFeedItems = React.useMemo(() => {
-    if (formAction === "farcaster-comment") return [];
     return pendingRepostTargetFeedItemIds
       .map((id) => feedItems.find((i) => i.id === id))
       .filter(Boolean);
-  }, [formAction, feedItems, pendingRepostTargetFeedItemIds]);
+  }, [feedItems, pendingRepostTargetFeedItemIds]);
 
   const reasonWithRepostsAndReplies = React.useMemo(() => {
     const replyMarkedQuotesAndReplyText = replyTargetFeedItems
-      // Farcaster replies are handled differently
-      .filter((i) => i.type !== "farcaster-cast")
       .map((item) => {
         const replyText = pendingRepliesByTargetItemId[item.id];
         // Skip empty replies
@@ -179,16 +157,6 @@ const TopicScreenContent = ({ candidateId }) => {
           acc.push(authorId);
         } // Collect from onchain replies
         feedItem.replyingItems?.forEach(collectParticipants);
-        // Collect from farcaster replies recursively
-        const collectCastParticipants = (cast) => {
-          const castAuthorId = cast.account?.nounerAddress?.toLowerCase();
-          if (castAuthorId != null && !acc.includes(castAuthorId)) {
-            acc.push(castAuthorId);
-          }
-          // Recursively collect from all nested replies
-          cast.replies?.forEach(collectCastParticipants);
-        };
-        feedItem.replyingCasts?.forEach(collectCastParticipants);
       };
       collectParticipants(item);
       return acc;
@@ -225,11 +193,10 @@ const TopicScreenContent = ({ candidateId }) => {
 
   const onRepost = React.useCallback(
     (postId) => {
+      const targetPost = feedItems.find((i) => i.id === postId);
       setPendingRepostTargetFeedItemIds((ids) =>
         ids.includes(postId) ? ids : [...ids, postId],
       );
-
-      const targetPost = feedItems.find((i) => i.id === postId);
 
       if (targetPost != null)
         setPendingSupport((support) => {
@@ -255,7 +222,7 @@ const TopicScreenContent = ({ candidateId }) => {
 
   if (candidate?.latestVersion.content.description == null) return null;
 
-  const handleFormSubmit = async (data) => {
+  const handleFormSubmit = async () => {
     switch (formAction) {
       case "onchain-comment":
         // A contract simulation takes a second to do its thing after every
@@ -264,11 +231,6 @@ const TopicScreenContent = ({ candidateId }) => {
         if (submitCommentTransaction == null) return;
         await submitCommentTransaction();
         break;
-
-      case "farcaster-comment":
-        await submitCandidateCast({ fid: data.fid, text: pendingComment });
-        break;
-
       default:
         throw new Error();
     }
@@ -306,8 +268,8 @@ const TopicScreenContent = ({ candidateId }) => {
     pendingRepliesByTargetItemId,
     items:
       sortStrategy === "chronological" ? feedItems.toReversed() : feedItems,
-    onRepost: formAction === "farcaster-comment" ? null : onRepost,
-    submitInlineReply: async (targetItemId, data) => {
+    onRepost,
+    submitInlineReply: async (targetItemId) => {
       const targetItem = feedItems.find((i) => i.id === targetItemId);
 
       if (targetItem == null) throw new Error();
@@ -321,20 +283,7 @@ const TopicScreenContent = ({ candidateId }) => {
         }));
         throw new Error();
       }
-
-      if (targetItem.type === "farcaster-cast") {
-        await submitCastReply({
-          fid: data.fid,
-          text: pendingRepliesByTargetItemId[targetItemId],
-          targetCastId: {
-            fid: targetItem.authorFid,
-            hash: targetItem.castHash,
-          },
-        });
-        console.log("cast reply submit successful");
-      } else {
-        await submitCommentTransaction();
-      }
+      await submitCommentTransaction();
 
       setPendingReplyState((s) => ({
         activeReplyTargetItemId: null,

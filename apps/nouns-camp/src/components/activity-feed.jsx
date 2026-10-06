@@ -2,7 +2,7 @@ import getDateYear from "date-fns/getYear";
 import React from "react";
 import ReactDOM from "react-dom";
 import NextLink from "next/link";
-import { css, keyframes } from "@emotion/react";
+import { css } from "@emotion/react";
 import {
   array as arrayUtils,
   string as stringUtils,
@@ -11,11 +11,9 @@ import { useHasBeenOnScreen } from "@shades/common/react";
 import Button from "@shades/ui-web/button";
 import Spinner from "@shades/ui-web/spinner";
 import Link from "@shades/ui-web/link";
-import Avatar from "@shades/ui-web/avatar";
 import * as Tooltip from "@shades/ui-web/tooltip";
 import * as DropdownMenu from "@shades/ui-web/dropdown-menu";
 import {
-  FarcasterGate as FarcasterGateIcon,
   CaretDown as CaretDownIcon,
   DotsHorizontal as DotsIcon,
 } from "@shades/ui-web/icons";
@@ -26,18 +24,10 @@ import {
   extractSlugFromId as extractSlugFromCandidateId,
   makeUrlId as makeCandidateUrlId,
 } from "@/utils/candidates";
-import { pickDisplayName as pickFarcasterAccountDisplayName } from "@/utils/farcaster";
 import { useNavigate } from "@/hooks/navigation";
-import { useWallet } from "@/hooks/wallet";
-import { useState as useSessionState } from "@/session-provider";
 import useAccountDisplayName from "@/hooks/account-display-name";
 import { useDialog } from "@/hooks/global-dialogs";
-import {
-  useDelegate,
-  useNoun,
-  useProposal,
-  useProposalCandidate,
-} from "@/store";
+import { useNoun, useProposal, useProposalCandidate } from "@/store";
 import AccountPreviewPopoverTrigger from "@/components/account-preview-popover-trigger";
 import FormattedDateWithTooltip from "@/components/formatted-date-with-tooltip";
 import AccountAvatar from "@/components/account-avatar";
@@ -46,15 +36,6 @@ import NounPreviewPopoverTrigger from "@/components/noun-preview-popover-trigger
 import NounsPreviewPopoverTrigger from "@/components/nouns-preview-popover-trigger";
 import { useTransferMeta as useNounTransferMeta } from "@/hooks/noun-transfers";
 import useBlockNumber from "@/hooks/block-number";
-import {
-  useAccountsWithVerifiedEthAddress as useFarcasterAccountsWithVerifiedEthAddress,
-  useSubmitTransactionLike,
-  useSubmitCastLike,
-  useTransactionLikes as useFarcasterTransactionLikes,
-  useCastLikes as useFarcasterCastLikes,
-  useCastConversation as useFarcasterCastConversation,
-  // useConnectedFarcasterAccounts,
-} from "@/hooks/farcaster";
 import { FormattedEthWithConditionalTooltip } from "@/components/transaction-list";
 import { buildEtherscanLink } from "@/utils/etherscan";
 import ProposalActionForm from "@/components/proposal-action-form";
@@ -62,12 +43,6 @@ import { getClientData } from "@/client";
 
 const BODY_TRUNCATION_HEIGHT_THRESHOLD = 135;
 
-const heartBounceAnimation = keyframes({
-  "0%": { transform: "scale(1)" },
-  "25%": { transform: "scale(1.2)" },
-  "50%": { transform: "scale(0.95)" },
-  "100%": { transform: "scale(1)" },
-});
 // const colorFadeAnimation = keyframes({
 //   "0%": { color: "var(--initial-color)" },
 //   "50%": { color: "var(--initial-color)" },
@@ -87,99 +62,6 @@ const ActivityFeed = ({
   variant,
   pendingRepliesByTargetItemId,
 }) => {
-  const { address: connectedAccountAddress } = useWallet();
-  const { address: loggedInAccountAddress } = useSessionState();
-  const userAccountAddress = connectedAccountAddress ?? loggedInAccountAddress;
-  const userAccountDelegate = useDelegate(userAccountAddress);
-  const submitTransactionLike = useSubmitTransactionLike();
-  const submitCastLike = useSubmitCastLike();
-  const {
-    open: openFarcasterSetupDialog,
-    preload: preloadFarcasterSetupDialog,
-  } = useDialog("farcaster-setup");
-  const {
-    open: openAuthenticationDialog,
-    preload: preloadAuthenticationDialog,
-  } = useDialog("account-authentication");
-  const userFarcasterAccount =
-    useFarcasterAccountsWithVerifiedEthAddress(userAccountAddress)?.[0];
-
-  const like = React.useCallback(
-    async (item, action) => {
-      try {
-        if (item.transactionHash != null) {
-          await submitTransactionLike({
-            transactionHash: item.transactionHash,
-            fid: userFarcasterAccount.fid,
-            action,
-          });
-        } else if (item.castHash != null) {
-          await submitCastLike({
-            targetCastId: { fid: item.authorFid, hash: item.castHash },
-            fid: userFarcasterAccount.fid,
-            action,
-          });
-        } else {
-          console.error("Invalid like target", item);
-          throw new Error();
-        }
-      } catch (e) {
-        console.error(e);
-        alert("Ops, looks like something went wrong!");
-      }
-    },
-    [userFarcasterAccount?.fid, submitTransactionLike, submitCastLike],
-  );
-
-  // Enable the like action if there’s a delegate entry for the user’s
-  // account, or if there’s a delegate entry for a verified address on the
-  // user’s Farcaster account
-  const allowLikeAction =
-    userAccountDelegate != null || userFarcasterAccount?.nounerAddress != null;
-
-  const hasFarcasterAccountKey =
-    userFarcasterAccount != null && userFarcasterAccount.hasAccountKey;
-  const requireAuthentication =
-    loggedInAccountAddress == null ||
-    // If the user is connected and logged in with different addresses they
-    // likely want to like as the connected one
-    (connectedAccountAddress != null &&
-      connectedAccountAddress !== loggedInAccountAddress);
-
-  const onLike = (() => {
-    // Wait for a wallet connection before we rule out likes
-    if (connectedAccountAddress != null && !allowLikeAction) return null;
-    if (!hasFarcasterAccountKey)
-      return () => openFarcasterSetupDialog({ intent: "like" });
-    if (requireAuthentication)
-      return (...args) => {
-        openAuthenticationDialog({
-          intent: "like",
-          onSuccess: () => like(...args),
-        });
-      };
-    return like;
-  })();
-
-  React.useEffect(() => {
-    if (!allowLikeAction) return;
-
-    if (!hasFarcasterAccountKey) {
-      preloadFarcasterSetupDialog();
-      return;
-    }
-    if (requireAuthentication) {
-      preloadAuthenticationDialog();
-      return;
-    }
-  }, [
-    allowLikeAction,
-    hasFarcasterAccountKey,
-    requireAuthentication,
-    preloadFarcasterSetupDialog,
-    preloadAuthenticationDialog,
-  ]);
-
   return (
     <ul
       data-variant={variant}
@@ -437,7 +319,6 @@ const ActivityFeed = ({
           context={context}
           onReply={onReply}
           onRepost={onRepost}
-          onLike={onLike}
           createReplyHref={createReplyHref}
           createRepostHref={createRepostHref}
           onInlineReplyChange={onInlineReplyChange}
@@ -468,7 +349,6 @@ const FeedItem = React.memo(
     pendingReply,
     onReply,
     onRepost,
-    onLike,
     createReplyHref,
     createRepostHref,
     onInlineReplyChange,
@@ -486,37 +366,13 @@ const FeedItem = React.memo(
     );
 
     const isBoxedVariant = variant === "boxed";
-
-    const userAccountAddress = useUserEthereumAccountAddress();
-    const userFarcasterAccount =
-      useFarcasterAccountsWithVerifiedEthAddress(userAccountAddress)?.[0];
-
     const containerRef = React.useRef();
     const hasBeenOnScreen = useHasBeenOnScreen(containerRef, {
       rootMargin: "0px 0px 200%",
     });
-
-    const replyCasts = useFarcasterCastConversation(item.castHash, {
-      enabled: hasBeenOnScreen,
-    });
-
     const nounTransferMeta = useNounTransferMeta(item.transactionHash, {
       enabled: item.type === "noun-transfer" && hasBeenOnScreen,
     });
-
-    const authorThreadCasts = (() => {
-      if (replyCasts == null) return null;
-      const flatten = (casts) =>
-        casts.flatMap((c) => [c, ...flatten(c.replies)]);
-      const flatReplies = flatten(replyCasts);
-      const firstNonAuthorReplyIndex = flatReplies.findIndex(
-        (c) => c.fid !== item.authorFid,
-      );
-      return flatReplies.slice(0, firstNonAuthorReplyIndex);
-    })();
-
-    const likes = useItemLikes(item, { enabled: hasBeenOnScreen });
-
     const candidate = useProposalCandidate(item.candidateId);
     const isTopicCandidate = candidate?.latestVersion?.type === "topic";
 
@@ -525,7 +381,6 @@ const FeedItem = React.memo(
 
     const hasBody = itemBody != null && itemBody.trim() !== "";
     const hasReposts = item.reposts?.length > 0;
-    const hasLikes = likes?.length > 0;
     const hasBeenReposted = item.repostingItems?.length > 0;
     const isReply = item.replies?.length > 0;
     const isMultiReply = item.replies?.length > 1;
@@ -540,40 +395,7 @@ const FeedItem = React.memo(
         )}?tab=activity&item=${item.id}`;
       return null;
     };
-
-    const parseCastReplies = (casts) => {
-      return casts.reduce((acc, cast) => {
-        let displayName = pickFarcasterAccountDisplayName(cast.account);
-        if (displayName !== cast.account.username)
-          displayName += ` (@${cast.account.username})`;
-
-        acc.push({
-          type: "farcaster-cast",
-          id: cast.hash,
-          castHash: cast.hash,
-          authorAccount: cast.account.nounerAddress,
-          authorFid: cast.account.fid,
-          authorAvatarUrl: cast.account.pfpUrl,
-          authorDisplayName: displayName,
-          authorUsername: cast.account.username,
-          castType: "reply",
-          replyBody: cast.text,
-          timestamp: new Date(cast.timestamp),
-        });
-
-        if (cast.replies.length > 0) {
-          const replyItems = parseCastReplies(cast.replies);
-          acc.push(...replyItems);
-        }
-
-        return acc;
-      }, []);
-    };
-
-    const unsortedReplyingItems = [
-      ...(item.replyingItems ?? []),
-      ...parseCastReplies(replyCasts ?? []),
-    ];
+    const unsortedReplyingItems = [...(item.replyingItems ?? [])];
     const replyingItems = arrayUtils.sortBy(
       { value: (i) => i.timestamp, order: "asc" },
       unsortedReplyingItems,
@@ -586,8 +408,6 @@ const FeedItem = React.memo(
     const showReplyForm = isBoxedVariant || isReplyFormExpanded || hasReplies;
 
     const showReplyAction = (() => {
-      // Casts simply link to Warpcast for now
-      if (item.type === "farcaster-cast") return true;
       if (
         onReply == null &&
         createReplyHref == null &&
@@ -605,45 +425,8 @@ const FeedItem = React.memo(
       ["vote", "feedback-post"].includes(item.type) &&
       (hasBody || isReply); // Don’t show for bare reposts
 
-    const showLikeAction = (() => {
-      if (onLike == null) return false;
-
-      // Items always likeable
-      if (item.type === "farcaster-cast") return true;
-
-      // Items not likeable
-      if (
-        ["auction-bid", "noun-transfer", "noun-delegation"].includes(
-          item.type,
-        ) ||
-        [
-          "proposal-created",
-          "candidate-created",
-          "proposal-queued",
-          "candidate-canceled",
-          "proposal-canceled",
-        ].includes(item.eventType)
-      )
-        return false;
-
-      // Items likeable if body present
-      if (
-        ["candidate-signature"].includes(item.type) ||
-        ["candidate-updated", "proposal-updated"].includes(item.eventType)
-      )
-        return hasBody;
-
-      // Items likeable if body present (replies always has a body)
-      if (["vote", "feedback-post"].includes(item.type))
-        return isReply || hasBody;
-
-      // The rest can be liked if they have a tx hash
-      return item.transactionHash != null;
-    })();
-
-    const showActionBar = showReplyAction || showRepostAction || showLikeAction;
-    const showMeta = hasLikes || hasBeenReposted || hasReplies;
-
+    const showActionBar = showReplyAction || showRepostAction;
+    const showMeta = hasBeenReposted || hasReplies;
     const renderReplyAction = (item) => {
       const [Component, props] = (() => {
         const replyHref =
@@ -669,16 +452,6 @@ const FeedItem = React.memo(
                   block: "center",
                 });
               },
-            },
-          ];
-
-        if (item.type === "farcaster-cast")
-          return [
-            "a",
-            {
-              href: `https://warpcast.com/${item.authorUsername}/${item.castHash}`,
-              target: "_blank",
-              rel: "noreferrer",
             },
           ];
 
@@ -717,24 +490,6 @@ const FeedItem = React.memo(
           : ["button", { onClick: () => onRepost(item.id) }];
 
       return <RepostAction item={item} component={component} {...props} />;
-    };
-
-    const renderLikeAction = (item) => {
-      const hasLiked = likes?.some(
-        (l) =>
-          l.nounerAddress === userAccountAddress ||
-          l.fid === userFarcasterAccount?.fid,
-      );
-
-      return (
-        <LikeAction
-          item={item}
-          hasLiked={hasLiked}
-          onClick={() => {
-            onLike(item, hasLiked ? "remove" : "add");
-          }}
-        />
-      );
     };
 
     return (
@@ -891,11 +646,6 @@ const FeedItem = React.memo(
                 truncateLines
               />
             )}
-            {!isBoxedVariant &&
-              authorThreadCasts?.map((cast) => (
-                // This renders the full thread as one big concatinated item body
-                <ItemBody key={cast.hash} text={cast.text} />
-              ))}
             {item.type === "candidate-signature" && (
               <div className="signature-meta">
                 {item.isCanceled ? (
@@ -919,7 +669,6 @@ const FeedItem = React.memo(
               <div className="action-bar-container">
                 {showReplyAction && renderReplyAction(item)}
                 {showRepostAction && renderRepostAction(item)}
-                {showLikeAction && renderLikeAction(item)}
               </div>
             )}
             {showMeta && (
@@ -927,7 +676,6 @@ const FeedItem = React.memo(
                 hide={!hasBeenOnScreen}
                 repostingItems={item.repostingItems}
                 replyingItems={replyingItems}
-                likes={likes}
               />
             )}
           </div>
@@ -945,7 +693,6 @@ const FeedItem = React.memo(
                         hasBeenOnScreen={hasBeenOnScreen}
                         createReplyHref={createRepostHref}
                         onRepost={onRepost}
-                        onLike={onLike}
                       />
                     </li>
                   );
@@ -967,11 +714,7 @@ const FeedItem = React.memo(
                   <ProposalActionForm
                     variant="bare"
                     size="small"
-                    mode={
-                      item.type === "farcaster-cast"
-                        ? "farcaster-comment"
-                        : "onchain-comment"
-                    }
+                    mode="onchain-comment"
                     inputRef={inlineReplyInputRef}
                     reason={pendingReply ?? ""}
                     setReason={(replyText) => {
@@ -1596,47 +1339,6 @@ const ItemTitle = ({ item, variant, context, hasBeenOnScreen }) => {
           </>
         );
       }
-
-      case "farcaster-cast": {
-        if (item.authorAccount == null)
-          return (
-            <>
-              <a
-                href={`https://warpcast.com/${item.authorUsername}`}
-                target="_blank"
-                rel="noreferrer"
-                css={(t) =>
-                  css({
-                    color: `${t.colors.textNormal} !important`,
-                    fontWeight: `${t.text.weights.emphasis} !important`,
-                  })
-                }
-              >
-                {item.authorDisplayName}
-              </a>{" "}
-              {item.castType === "reply" ? "replied" : "commented"}
-              {!isIsolatedContext && (
-                <>
-                  {" "}
-                  on <ContextLink short {...item} />
-                </>
-              )}
-            </>
-          );
-
-        return (
-          <>
-            {author} {item.castType === "reply" ? "replied" : "commented"}
-            {!isIsolatedContext && (
-              <>
-                {" "}
-                on <ContextLink short {...item} />
-              </>
-            )}
-          </>
-        );
-      }
-
       case "candidate-signature":
         return (
           <>
@@ -1710,9 +1412,7 @@ const ItemTitle = ({ item, variant, context, hasBeenOnScreen }) => {
                     ) : (
                       <>, </>
                     )
-                  ) : (
-                    <></>
-                  )}
+                  ) : null}
                   <a
                     key={v.recipientId}
                     href={`https://flows.wtf/flow/${v.recipientId}`}
@@ -1736,9 +1436,7 @@ const ItemTitle = ({ item, variant, context, hasBeenOnScreen }) => {
 
   return (
     <span
-      data-wrap={
-        !["vote", "feedback-post", "farcaster-cast"].includes(item.type)
-      }
+      data-wrap={!["vote", "feedback-post"].includes(item.type)}
       css={(t) =>
         css({
           ".timestamp": {
@@ -1790,7 +1488,6 @@ const NounTransferItem = ({ item, isOnScreen }) => {
   const { address: treasuryAddress } = resolveContractIdentifier("executor");
   const { address: auctionHouseAddress } =
     resolveContractIdentifier("auction-house");
-
   if (transferMeta == null) return <>&nbsp;</>; // Loading
 
   const {
@@ -2246,8 +1943,6 @@ const FeedItemActionDropdown = ({
   context,
   item,
   onRepost,
-  onLike,
-  onRemoveLike,
   primaryActions,
   secondaryActions,
 }) => {
@@ -2269,7 +1964,6 @@ const FeedItemActionDropdown = ({
 
   const actionItems = (() => {
     const itemCategory = (() => {
-      if (item.type === "farcaster-cast") return "farcaster-cast";
       if (
         item.type === "event"
           ? item.eventType.startsWith("auction-")
@@ -2322,8 +2016,6 @@ const FeedItemActionDropdown = ({
             return item.transactionHash != null ? ["open-block-explorer"] : [];
           case "propdate":
             return ["open-updates-wtf", "open-block-explorer"];
-          case "farcaster-cast":
-            return ["open-farcaster-client"];
           default:
             return item.transactionHash != null ? ["open-block-explorer"] : [];
         }
@@ -2351,22 +2043,12 @@ const FeedItemActionDropdown = ({
             label: "View transaction on Etherscan",
             external: true,
           };
-        case "open-farcaster-client":
-          return {
-            id: key,
-            label: "View on Warpcast",
-            external: true,
-          };
         case "open-updates-wtf":
           return {
             id: key,
             label: "View on updates.wtf",
             external: true,
           };
-        case "like":
-          return { id: key, label: "Like" };
-        case "remove-like":
-          return { id: key, label: "Remove like" };
         case "repost":
           return { id: key, label: "Repost" };
         case "copy-link":
@@ -2430,28 +2112,11 @@ const FeedItemActionDropdown = ({
       case "open-vote-overview":
         openVoteOverviewDialog(item.proposalId);
         break;
-
-      case "open-farcaster-client":
-        if (item.authorUsername == null) return;
-        window.open(
-          `https://warpcast.com/${item.authorUsername}/${item.id}`,
-          "_blank",
-        );
-        break;
-
       case "open-updates-wtf":
         window.open(
           `https://www.updates.wtf/update/${item.propdateId}`,
           "_blank",
         );
-        break;
-
-      case "like":
-        onLike();
-        break;
-
-      case "remove-like":
-        onRemoveLike();
         break;
 
       case "repost":
@@ -2550,46 +2215,22 @@ const NestedReplyItem = ({
   hasBeenOnScreen,
   createRepostHref,
   onRepost,
-  onLike,
 }) => {
   const navigate = useNavigate();
-
-  const userAccountAddress = useUserEthereumAccountAddress();
-  const userFarcasterAccount =
-    useFarcasterAccountsWithVerifiedEthAddress(userAccountAddress)?.[0];
-
-  const likes = useItemLikes(item, { enabled: hasBeenOnScreen });
-  const hasLiked = likes?.some(
-    (l) =>
-      l.nounerAddress === userAccountAddress ||
-      l.fid === userFarcasterAccount?.fid,
-  );
-
-  const hasLikes = likes?.length > 0;
   const hasBeenReposted = item.repostingItems?.length > 0;
-
-  const showLikeAction =
-    onLike != null &&
-    (item.type === "farcaster-cast" || item.transactionHash != null);
   const showRepostAction =
     (onRepost != null || createRepostHref != null) &&
     ["vote", "feedback-post"].includes(item.type);
-
-  const showMeta = hasLikes || hasBeenReposted;
-
+  const showMeta = hasBeenReposted;
   return (
     <>
       <div className="item-header">
         <div className="avatar-container">
-          {item.type === "farcaster-cast" ? (
-            <CastItemAvatar item={item} />
-          ) : (
-            <AccountPreviewPopoverTrigger accountAddress={item.authorAccount}>
-              <button className="avatar-button">
-                <AccountAvatar address={item.authorAccount} size="2rem" />
-              </button>
-            </AccountPreviewPopoverTrigger>
-          )}
+          <AccountPreviewPopoverTrigger accountAddress={item.authorAccount}>
+            <button className="avatar-button">
+              <AccountAvatar address={item.authorAccount} size="2rem" />
+            </button>
+          </AccountPreviewPopoverTrigger>
         </div>
         <div className="item-title-container">
           <ItemTitle
@@ -2608,12 +2249,6 @@ const NestedReplyItem = ({
             ) : (
               <FeedItemActionDropdown
                 item={item}
-                onLike={() => {
-                  onLike(item, "add");
-                }}
-                onRemoveLike={() => {
-                  onLike(item, "remove");
-                }}
                 onRepost={() => {
                   if (createRepostHref != null) {
                     navigate(createRepostHref(item));
@@ -2621,16 +2256,9 @@ const NestedReplyItem = ({
                   }
                   onRepost(item.id);
                 }}
-                primaryActions={[
-                  showLikeAction && (hasLiked ? "remove-like" : "like"),
-                  showRepostAction && "repost",
-                ].filter(Boolean)}
+                primaryActions={[showRepostAction && "repost"].filter(Boolean)}
                 secondaryActions={
-                  item.type === "farcaster-cast"
-                    ? ["open-farcaster-client"]
-                    : item.transactionHash != null
-                      ? ["open-block-explorer"]
-                      : []
+                  item.transactionHash != null ? ["open-block-explorer"] : []
                 }
               />
             )}
@@ -2642,11 +2270,7 @@ const NestedReplyItem = ({
       </div>
 
       {showMeta && (
-        <MetaBar
-          hide={!hasBeenOnScreen}
-          repostingItems={item.repostingItems}
-          likes={likes}
-        />
+        <MetaBar hide={!hasBeenOnScreen} repostingItems={item.repostingItems} />
       )}
     </>
   );
@@ -2665,65 +2289,7 @@ const RepostAction = ({ item, component: Component = "div", ...props }) => (
     </svg>
   </Component>
 );
-
-const LikeAction = ({ item, hasLiked, onClick }) => (
-  <button
-    data-liked={hasLiked}
-    onClick={(e) => {
-      onClick?.(e);
-      e.currentTarget.dataset.clicked = "true";
-    }}
-    disabled={item.isPending}
-    css={(t) =>
-      css({
-        '&[data-liked="true"]': {
-          color: t.colors.red,
-          "@media(hover: hover)": {
-            ":not(:disabled):hover": { color: t.colors.red },
-          },
-          '&[data-clicked="true"]': {
-            animationName: heartBounceAnimation,
-            animationDuration: "0.45s",
-            animationTimingFunction: "ease-in-out",
-          },
-        },
-      })
-    }
-  >
-    <svg
-      aria-label="Like"
-      role="img"
-      viewBox="0 0 18 18"
-      fill={hasLiked ? "currentColor" : "transparent"}
-      stroke="currentColor"
-      style={{ width: "1.4rem", height: "auto" }}
-    >
-      <path
-        d="M1.34375 7.53125L1.34375 7.54043C1.34374 8.04211 1.34372 8.76295 1.6611 9.65585C1.9795 10.5516 2.60026 11.5779 3.77681 12.7544C5.59273 14.5704 7.58105 16.0215 8.33387 16.5497C8.73525 16.8313 9.26573 16.8313 9.66705 16.5496C10.4197 16.0213 12.4074 14.5703 14.2232 12.7544C15.3997 11.5779 16.0205 10.5516 16.3389 9.65585C16.6563 8.76296 16.6563 8.04211 16.6562 7.54043V7.53125C16.6562 5.23466 15.0849 3.25 12.6562 3.25C11.5214 3.25 10.6433 3.78244 9.99228 4.45476C9.59009 4.87012 9.26356 5.3491 9 5.81533C8.73645 5.3491 8.40991 4.87012 8.00772 4.45476C7.35672 3.78244 6.47861 3.25 5.34375 3.25C2.9151 3.25 1.34375 5.23466 1.34375 7.53125Z"
-        strokeWidth="1.25"
-      />
-    </svg>
-  </button>
-);
-
-const useItemLikes = (item, { enabled = true } = {}) => {
-  const transactionLikes = useFarcasterTransactionLikes(item.transactionHash, {
-    enabled,
-  });
-  const castLikes = useFarcasterCastLikes(item.castHash, {
-    enabled,
-  });
-
-  return transactionLikes ?? castLikes;
-};
-
-const useUserEthereumAccountAddress = () => {
-  const { address: connectedAccount } = useWallet();
-  const { address: loggedInAccount } = useSessionState();
-  return connectedAccount ?? loggedInAccount;
-};
-
-const MetaBar = ({ hide = false, repostingItems, replyingItems, likes }) => (
+const MetaBar = ({ hide = false, repostingItems, replyingItems }) => (
   <div className="meta-bar-container">
     {hide ? (
       <>&nbsp;</>
@@ -2757,49 +2323,6 @@ const MetaBar = ({ hide = false, repostingItems, replyingItems, likes }) => (
             </>
           ),
         },
-        likes?.length > 0 && {
-          key: "likes",
-          element: (
-            <Tooltip.Root>
-              <Tooltip.Trigger>
-                {likes.length} {likes.length === 1 ? "like" : "likes"}
-              </Tooltip.Trigger>
-              <Tooltip.Content sideOffset={4}>
-                {arrayUtils
-                  .sortBy(
-                    {
-                      value: (a) =>
-                        a.votingPower == null ? Infinity : a.votingPower,
-                      order: "desc",
-                    },
-                    likes,
-                  )
-                  .map((farcasterAccount, i) => (
-                    <React.Fragment key={farcasterAccount.fid}>
-                      <span
-                        data-voting-power={farcasterAccount.votingPower}
-                        css={(t) =>
-                          css({
-                            '&[data-voting-power="0"]': {
-                              color: t.colors.textDimmed,
-                            },
-                          })
-                        }
-                      >
-                        {i > 0 && <br />}
-                        <AccountDisplayName
-                          address={farcasterAccount.nounerAddress}
-                        />
-                        {farcasterAccount.votingPower != null && (
-                          <> ({farcasterAccount.votingPower})</>
-                        )}
-                      </span>
-                    </React.Fragment>
-                  ))}
-              </Tooltip.Content>
-            </Tooltip.Root>
-          ),
-        },
       ]
         .filter(Boolean)
         .map(({ key, element }, index) => (
@@ -2812,54 +2335,8 @@ const MetaBar = ({ hide = false, repostingItems, replyingItems, likes }) => (
   </div>
 );
 
-const CastItemAvatar = ({ item }) => (
-  <div style={{ position: "relative" }}>
-    {item.authorAccount == null ? (
-      <Avatar url={item.authorAvatarUrl} size="2rem" />
-    ) : (
-      <AccountPreviewPopoverTrigger accountAddress={item.authorAccount}>
-        <button className="avatar-button">
-          <AccountAvatar
-            address={item.authorAccount}
-            fallbackImageUrl={item.authorAvatarUrl}
-            size="2rem"
-          />
-        </button>
-      </AccountPreviewPopoverTrigger>
-    )}
-    <span
-      css={(t) =>
-        css({
-          position: "absolute",
-          top: 0,
-          right: 0,
-          display: "flex",
-          width: "1rem",
-          height: "1rem",
-          borderRadius: "50%",
-          alignItems: "center",
-          justifyContent: "center",
-          background: "#855DCD", // Farcaster purple
-          transform: "translateY(-35%) translateX(35%)",
-          boxShadow: `0 0 0 0.15rem ${t.colors.backgroundPrimary}`,
-          svg: {
-            width: "0.6rem",
-            height: "auto",
-            color: "white",
-          },
-        })
-      }
-    >
-      <FarcasterGateIcon />
-    </span>
-  </div>
-);
-
 const ItemAvatar = ({ item, ...props }) => {
   switch (item.type) {
-    case "farcaster-cast":
-      return <CastItemAvatar item={item} />;
-
     case "noun-transfer": {
       const { nounTransferMeta } = props;
 
